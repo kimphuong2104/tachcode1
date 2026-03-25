@@ -6,6 +6,7 @@
 import json
 import logging
 import cdbwrapc
+from enum import Enum
 
 from datetime import datetime
 
@@ -54,6 +55,13 @@ classification_elink_urls_by_operation = {
     'requery': "/byname/search_classification/{cdb_classname}"
 }
 
+
+class ApplicationTypeID(Enum):
+    BUY = '00'
+
+
+class AssignClassificationByApplicationTypeID(Enum):
+    BUY = 'LIB_Design_Library'
 
 class ClassificationConstants(object):
     """
@@ -849,6 +857,9 @@ def _create_classification(obj, ctx):
 
     if "classification_web_ctrl" in ctx.sys_args.get_attribute_names():
         data = ctx.sys_args.classification_web_ctrl
+        if not data and obj.application_type_id == ApplicationTypeID.BUY.value:
+            set_classification_item_by_application_type(obj, ctx)
+
         if data:
             # classification_web_ctrl contains a json string: {"classes":[],"values":"{}"}
             d = json.loads(data)
@@ -858,8 +869,16 @@ def _create_classification(obj, ctx):
                     "properties": d["values"]
                 }
                 try:
+                    '''
+                     If the application type has an id of ApplicationTypeID, 
+                     assign classification it to the class according to the AssignClassificationByApplicationTypeID
+                    '''
+                    if obj.application_type_id == ApplicationTypeID.BUY.value and \
+                            AssignClassificationByApplicationTypeID.BUY.value not in upd_data['assigned_classes']:
+                        upd_data['assigned_classes'].append(AssignClassificationByApplicationTypeID.BUY.value)
+
                     update_classification(obj, upd_data, full_update_mode=True, check_access=False)
-                except Exception: # pylint: disable=W0703
+                except Exception:  # pylint: disable=W0703
                     LOG.exception("Error saving classification data:")
                     raise ue.Exception("cs_classification_err_save_data")
             return
@@ -969,3 +988,12 @@ def collect_index_attributes(updater):
     property_values = sqlapi.RecordSet2(sql=sql_stmt)
     for property_value in property_values:
         updater._add_field("descriptive", property_value["text_value"])
+
+def set_classification_item_by_application_type(obj, ctx):
+    from cs.classification import api
+
+    classification_data = {
+        'assigned_classes': [AssignClassificationByApplicationTypeID.BUY.value],
+        'properties': {}
+    }
+    api.update_classification(obj, classification_data, full_update_mode=True, check_access=False)

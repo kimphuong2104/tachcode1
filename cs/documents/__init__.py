@@ -1484,6 +1484,21 @@ class Document(
                     continue
                 convertFile(f, target)
 
+    def transfer_file_office_to_pdf(self, ctx=None, primary_files=True):
+        from cdb.acs import convertFile, registered_conversions
+        if primary_files:
+            files = self.PrimaryFiles
+        else:
+            files = [f for f in self.Files if not f.cdbf_derived_from]
+        for f in files:
+            for (target, _plugin) in registered_conversions(f.cdbf_type):
+                if "pdf" == target:
+                    try:
+                        convertFile(f, target)
+                    except Exception:
+                        continue
+
+
     @classmethod
     def on_doc_create_acs_job_now(cls, ctx):
         primary_only = cls.restrictConversionJobHandlingToPrimFiles()
@@ -1582,6 +1597,7 @@ def _file_event_handler(the_file, doc_obj_hndl, ctx):
         return
     if ctx.action == "create":
         doc.fileCreated(the_file, ctx)
+        doc.transfer_file_office_to_pdf(ctx, False)
     elif ctx.action == "modify":
         doc.fileModified(the_file, ctx)
     elif ctx.action == "delete":

@@ -196,3 +196,13 @@ def keep_old_part_keys_if_needed(doc, ctx):
 
 def update_strong_reference(doc, ctx):
     doc.doc2part_update_strong_reference(ctx)
+
+@sig.connect(Document, 'create', 'pre')
+def set_classification_to_part_create_manual(obj, ctx):
+    from cs.vp.items import Item
+    from cs.classification import set_classification_item_by_application_type, ApplicationTypeID
+ 
+    if obj.teilenummer:
+        if obj.teilenummer[:obj.teilenummer.index('.')] == ApplicationTypeID.BUY.value:
+            item = Item.ByKeys(teilenummer=obj.teilenummer)
+            set_classification_item_by_application_type(item, ctx)

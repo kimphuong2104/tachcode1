@@ -869,12 +869,14 @@ class Task(object):
     }
 
 
+
+
 @classbody
 class SubjectAssignment(object):
 
     def keep_subj_with_assignment(self, _):
         # Check if person is also assigned to another role
-        assignments = SubjectAssignment.KeywordQuery(cdb_project_id=self.project_id, subject_id=self.subject_id)
+        assignments = SubjectAssignment.KeywordQuery(cdb_project_id=self.cdb_project_id, subject_id=self.subject_id)
         if len(assignments) > 1:
             return
         # check if demand assignment exists

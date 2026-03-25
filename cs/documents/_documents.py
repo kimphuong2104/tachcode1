@@ -1,5 +1,5 @@
-#!/usr/bin/env python
-# -*- python -*- coding: iso-8859-1 -*-
+﻿#!/usr/bin/env python
+# -*- python -*- coding: utf-8 -*-
 #
 # Copyright (C) 2013 CONTACT Software GmbH
 # All rights reserved.
@@ -13,6 +13,7 @@ import logging
 import os
 from datetime import datetime
 
+from cdb import sqlapi
 from cdb import auth, kernel, ue
 from cdb.classbody import classbody
 from cdb.objects import LocalizedField, N, Reference
@@ -63,10 +64,10 @@ class Document(WithStateChangeNotification):
         if ctx.error:
             return
 
-        if ctx.old.z_status in ["0", "100"] and ctx.new.z_status == "200":
+        if ctx.old.z_status in ["0", "90", "100", "120"] and ctx.new.z_status == "200":
             # Pruefer und Pruefdatum setzen
             self.Update(pruefer=auth.get_name(), pruef_datum=datetime.utcnow().date())
-            # Vorgaengerindex von 'in �nderung' (190) nach 'ungueltig' (180) setzen
+            # Vorgaengerindex von 'in ï¿½nderung' (190) nach 'ungueltig' (180) setzen
             old_state = 190
             new_state = 180
             docs = Document.KeywordQuery(z_nummer=self.z_nummer, z_status=old_state)
@@ -187,7 +188,7 @@ class Document(WithStateChangeNotification):
     def on_delete_post(self, ctx):
         if ctx.error:
             return
-        # Statuswechsel des Vorgaengerindex von 190 (in �nderung) zurueck nach 200 (Konst. Freigabe)
+        # Statuswechsel des Vorgaengerindex von 190 (in ï¿½nderung) zurueck nach 200 (Konst. Freigabe)
         old_state = 190
         new_state = 200
         docs = Document.KeywordQuery(z_nummer=self.z_nummer, z_status=old_state)
@@ -213,7 +214,7 @@ class Document(WithStateChangeNotification):
         if ctx.error:
             return
         # autom. Statuswechsel des Vorgaengerindex von 200 (freigeben)
-        # bzw. 300 (ERP freigeben) nach 190 (in �nderung)
+        # bzw. 300 (ERP freigeben) nach 190 (in ï¿½nderung)
         doc = Document.ByKeys(self.z_nummer, ctx.cdbtemplate.z_index)
         if doc and doc.z_status in [200, 300]:
             new_state = 190
@@ -591,6 +592,32 @@ class Document(WithStateChangeNotification):
             new_erz_sys = ftypes.pop()
         return new_erz_sys
 
+    #def send_mail_notification(self, ctx):
+        stt_old = ctx.old.z_status
+        stt_new = ctx.new.z_status
+        if(stt_old == '100' and stt_new == '200') or (stt_old == '120' and stt_new == '200'):
+            message_body = """
+                <div>
+                    <div>
+                        <p>Tài liệu có mã <b>{}</b> đã được phê duyệt</p>
+                        <p>Email này được tạo ra tự động từ hệ thống PLM CIM Database. Vui lòng không reply.</p>
+                        <p>PLM CIM Database System</p>
+                    </div>
+                </div>
+            """.format(self.z_nummer)
+            send_email_status_change("CIM DATABASE - Phê duyệt tài liệu  ", message_body)
+        if(stt_old == '170' and stt_new == '0'):
+            message_body = """
+            <div>
+                <div>
+                    <p>Tài liệu có mã: <b>{}</b> đã được thu hồi để chỉnh sửa.</p>
+                    <p>Email này được tạo ra tự động từ hệ thống PLM CIM Database. Vui lòng không reply.</p>
+                    <p>PLM CIM Database System</p>
+                </div>
+            </div>
+            """.format(self.z_nummer)
+            send_email_status_change("CIM DATABASE - Thu hồi tài liệu  ", message_body)
+
     event_map = {
         (("copy", "create"), "post_mask"): ("setWorkflow", "checkItemReference"),
         # Redefine setDocumentNumber from cs.document.Document event map
@@ -606,22 +633,22 @@ class Document(WithStateChangeNotification):
         ("create", ("pre_mask", "pre")): "set_categ_by_filetype",
         ("modify", "pre"): ("_check_partno"),
         ("wf_step", "pre_mask"): ("check_file_edit"),
+        #("state_change", "post"): ("send_mail_notification"),
     }
 
 
 # Email notification attributes
-Document.__notification_template__ = "document_approval.html"
-Document.__notification_title__ = (
-    "CIM DATABASE - Dokument zur Pr�fung / Document for approval"
-)
-# Force looking for the template file in defined folder
-_thisdir = os.path.dirname(__file__)
-Document.__notification_template_folder__ = os.path.join(_thisdir, "chrome")
+# Document.__notification_template__ = "document_approval.html"
+# Document.__notification_title__ = (
+#     "CIM DATABASE - Tài liệu cần phê duyệt / Document for approval"
+# )
+# # Force looking for the template file in defined folder
+# _thisdir = os.path.dirname(__file__)
+# Document.__notification_template_folder__ = os.path.join(_thisdir, "chrome")
 
 
 @classbody
 class DocumentCategory(object):
-
     SubCategories = Reference(
         N, DocumentCategory, DocumentCategory.parent_id == DocumentCategory.categ_id
     )
@@ -700,3 +727,22 @@ class DocumentCategory(object):
     event_map = {
         (("modify"), "post"): "UpdateSubCategories",
     }
+def send_email_status_change(subject, message_body):
+    from cdb.mail import Message
+
+    query_user = sqlapi.SQLselect("e_mail, name FROM angestellter WHERE e_mail != ''")
+
+    msg = Message()
+    msg.Subject(subject)
+
+    for i in range(sqlapi.SQLrows(query_user)):
+        user_email = sqlapi.SQLstring(query_user, 0, i)
+        user_name = sqlapi.SQLstring(query_user, 1, i)
+        if not user_email is None:
+            # Send email
+            msg.To(user_email, user_name)
+            msg.From("systemplm@congty751.com.vn", 'PLM 751')
+
+        msg.body(message_body, mimetype="text/html")
+
+    msg.send()

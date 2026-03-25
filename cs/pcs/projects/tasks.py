@@ -1,5 +1,5 @@
 #!/usr/bin/env powerscript
-# coding: utf-8
+# -*- coding: utf-8 -*-
 #
 # Copyright (C) 1990 - 2023 CONTACT Software GmbH
 # All rights reserved.
@@ -1215,7 +1215,7 @@ class Task(
         :return: title of the notification mail
         :rtype: basestring
         """
-        return f"{gui.Message.GetMessage('branding_product_name')} - Aufgabe bereit / Task ready"
+        return f"{gui.Message.GetMessage('branding_product_name')} - Công việc đã sẵn sàng / Task ready"
 
     def getNotificationTemplateName(self, ctx=None):
         """

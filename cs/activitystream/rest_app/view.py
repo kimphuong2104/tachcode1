@@ -251,7 +251,7 @@ def posting_update(self, request):
         )
         for f in prev_ones:
             f.delete_file()
-        _call_action_hook(self, False)
+        _call_action_hook(self, True)
 
     return request.view(self)
 
@@ -380,7 +380,7 @@ def comment_update(self, request):
         )
         for f in prev_ones:
             f.delete_file()
-        _call_action_hook(self, False)
+        _call_action_hook(self, True)
     return request.view(self)
 
 

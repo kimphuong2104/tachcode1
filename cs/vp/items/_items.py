@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+﻿#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # vim: set fileencoding=latin1 :
 # -*- Python -*-
@@ -145,7 +145,7 @@ class Item(WithStateChangeNotification):
     def getNotificationReceiver(self, ctx=None):
         rcvr = {}
         if self.status == 100:
-            releaseRole = CommonRole.ByKeys("Design Release")
+            releaseRole = CommonRole.ByKeys("public")
             for pers in releaseRole.getPersons():
                 if pers.e_mail:
                     tolist = rcvr.setdefault("to", [])
@@ -172,7 +172,7 @@ class Item(WithStateChangeNotification):
 
         if ctx.error != 0:
             return
-        if ctx.old.status == '100' and ctx.new.status == '200':
+        if ctx.old.status ["100", "120"] and ctx.new.status == '200':
             # Prüfer und Prüfdatum setzen
             self.t_pruefer = auth.get_name()
             self.t_pruef_datum = datetime.datetime.utcnow()
@@ -352,11 +352,46 @@ class Item(WithStateChangeNotification):
         change.
         """
         if ctx.new.status == '200':
-            self.getPersistentObject().Update(
-                ce_valid_from=datetime.datetime.utcnow(), ce_valid_to=None
-            )
+            import hashlib
+            from datetime import datetime, date
+
+            md5 = hashlib.md5((self.cdb_object_id + str(datetime.utcnow())).encode()).hexdigest()
+
+            self.getPersistentObject().Update(ce_valid_from=date.today(), ce_valid_to=None)
+
+            initial_datetime = datetime.strptime(str(self.cdb_mdate), "%Y-%m-%d %H:%M:%S")
+            date_update = str(initial_datetime.replace(microsecond=0)) + '.000'
+	    
+            sqlapi.SQLupdate("cdb_t_statiprot SET md5='{}' WHERE teilenummer='{}' and cdbprot_neustat = 'Released' and cdbprot_zeit = '{}'".format(md5, self.teilenummer, date_update))
+            Item.ByKeys(cdb_object_id=self.cdb_object_id).Update(md5=md5)
+
+            subject = "PLM 751 - Part released"
+            msg_body = '''
+                <div>
+                    <div>
+                        <p>Part có mã: <b>{}</b> đã được phê duyệt.
+                        <p>Mã MD5: {}</p>
+                        <p>Email này được tạo ra tự động từ hệ thống PLM 751. Vui lòng không reply.</p>
+                        <p>PLM 751 System</p>                      
+                    </div>
+                </div>'''.format(self.teilenummer, md5)
+
+            send_email_status_change(teilenummer=self.teilenummer, subject=subject, message_body=msg_body)
+
         elif ctx.new.status in ['170', '180']:
-            self.getPersistentObject().Update(ce_valid_to=datetime.datetime.utcnow())
+            self.getPersistentObject().Update(ce_valid_to=date.today())
+        elif ctx.new.status in ['100']:
+            subject = "PLM 751 - Part waiting for VTX review"
+            msg_body = '''
+                <div>
+                    <div>
+                        <p>Part có mã: <b>{}</b> đang chờ VTX xem xét.<br>Truy cập hệ thống để thực hiện công việc liên quan.<br></p>
+                        <p>Email này được tạo ra tự động từ hệ thống PLM 751. Vui lòng không reply.</p>
+                        <p>PLM 751 System</p>
+                    </div>
+                </div>'''.format(self.teilenummer)
+
+            send_email_status_change(teilenummer=self.teilenummer, subject=subject, message_body=msg_body)
 
     event_map = {
         (('copy', 'create', 'modify', 'info', 'query', 'requery'), 'pre_mask'): "smlPremaskImages",
@@ -368,11 +403,11 @@ class Item(WithStateChangeNotification):
     }
 
 # Email notification attributes
-Item.__notification_template__ = "part_approval.html"
-Item.__notification_title__ = "CIM DATABASE - Artikel zur Prüfung / Part for approval"
+#Item.__notification_template__ = "part_approval.html"
+#Item.__notification_title__ = "PLM 751 - Part waiting for VTX review"
 # Force looking for the template file in defined folder
-dirname = os.path.dirname(__file__)
-Item.__notification_template_folder__ = os.path.join(dirname, "chrome")
+#dirname = os.path.dirname(__file__)
+#Item.__notification_template_folder__ = os.path.join(dirname, "chrome")
 
 
 @sig.connect(rte.APPLICATIONS_LOADED_HOOK)
@@ -398,3 +433,24 @@ def set_never_effective(self, ctx):
 
 def set_effectivity_dates_on_state_change(self, ctx):
     self.set_effectivity_dates_on_state_change(ctx)
+
+
+def send_email_status_change(teilenummer, subject, message_body):
+    from cdb.mail import Message
+
+    query_user = sqlapi.SQLselect("e_mail, name FROM angestellter WHERE e_mail != ''")
+
+    msg = Message()
+    msg.Subject(subject)
+
+    for i in range(sqlapi.SQLrows(query_user)):
+        user_email = sqlapi.SQLstring(query_user, 0, i)
+        user_name = sqlapi.SQLstring(query_user, 1, i)
+        if not user_email is None:
+            # Send email
+            msg.To(user_email, user_name)
+            msg.From("systemplm@congty751.com.vn", 'PLM 751')
+        
+        msg.body(message_body, mimetype="text/html")
+            
+    msg.send()

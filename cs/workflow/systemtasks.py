@@ -46,6 +46,8 @@ from cs.workflow.briefcases import BriefcaseContentWhitelist, FolderContent
 from cs.workflow.forms import Form
 from cs.workflow.forms import TaskWithForm
 from cs.workflow.misc import notification_enabled
+def notification_enabled():
+    return False
 from cs.workflow.misc import get_object_url
 from cs.workflow.misc import get_email_language
 from cs.workflow.tasks_plugin import WorkflowInfoMessageWithCsTasks

@@ -1,4 +1,4 @@
-# !/usr/bin/env powerscript
+﻿# !/usr/bin/env powerscript
 # -*- python -*- coding: utf-8 -*-
 #
 # Copyright (C) 2013 CONTACT Software GmbH
@@ -11,6 +11,7 @@ __revision__ = "$Id$"
 from datetime import datetime
 import json
 import math
+import logging
 
 from cdb import sqlapi, auth
 from cdb import ue
@@ -233,15 +234,261 @@ class AssemblyComponent(Object, WithBatchOperations):
                 """
             )
 
+    # def set_drawing_no_by_position(self, ctx):
+    #
+    #     item_root = Item.ByKeys(teilenummer=ctx.dialog.baugruppe)
+    #     logging.exception("Item Root = " + str(ctx.dialog.baugruppe))
+    #     is_assembly = item_root.is_assembly
+    #     if not item_root.drawing_no:
+    #         logging.exception("Item root khong co Drawing_no")
+    #         return
+    #
+    #     item_node = Item.ByKeys(teilenummer=ctx.dialog.teilenummer)
+    #     logging.exception("Item node = " + str(ctx.dialog.teilenummer))
+    #     if item_node.drawing_no:
+    #         logging.exception("HAS DRAWING_NO & UPDATE ->>")
+    #         return
+    #
+    #     position = int(int(ctx.dialog.position) / 10)
+    #
+    #     position_in_drawing_no = '0' + str(position) if position < 10 else str(position)
+    #
+    #     list_item_drawing_no = item_root.drawing_no.split('.')
+    #     # logging.exception(list_item_drawing_no)
+    #     if list_item_drawing_no[len(list_item_drawing_no) - 3] == '00':
+    #         list_item_drawing_no[len(list_item_drawing_no) - 3] = position_in_drawing_no
+    #
+    #         item_node.Update(drawing_no='.'.join(list_item_drawing_no), is_assembly = is_assembly)
+    #         logging.exception("list_item_drawing_no -3 = 00 ")
+    #         return
+    #
+    #     if list_item_drawing_no[len(list_item_drawing_no) - 2] == '00':
+    #         list_item_drawing_no[len(list_item_drawing_no) - 2] = position_in_drawing_no
+    #
+    #         item_node.Update(drawing_no='.'.join(list_item_drawing_no) , is_assembly = is_assembly)
+    #         logging.exception("list_item_drawing_no -2 = 00 ")
+    #         return
+    #
+    #     query_count_child_node = sqlapi.SQLselect("* FROM einzelteile WHERE baugruppe = '%s'" % ctx.dialog.baugruppe)
+    #     position_child_node_default = sqlapi.SQLrows(query_count_child_node)
+    #
+    #     if list_item_drawing_no[len(list_item_drawing_no) - 1] == '000':
+    #         logging.exception("list item dw - 1 = 000")
+    #         if is_assembly:
+    #             logging.exception("is assembly = True")
+    #             if position_child_node_default + 1 > 10:
+    #                 raise ue.Exception('Part root with category "Assembly" cannot exceed 900.')
+    #
+    #             list_item_drawing_no[len(list_item_drawing_no) - 1] = str((position_child_node_default + 1) * 100)
+    #             drawing_no = '.'.join(list_item_drawing_no)
+    #             item_node.Update(drawing_no=drawing_no, is_assembly=is_assembly, is_third_node_of_assembly=1)
+    #             return
+    #         else:
+    #             logging.exception("is assembly = False")
+    #
+    #             if position_child_node_default + 1 < 10:
+    #                 list_item_drawing_no[len(list_item_drawing_no) - 1] = '00' + str(position_child_node_default + 1)
+    #             elif position_child_node_default + 1 < 100:
+    #                 list_item_drawing_no[len(list_item_drawing_no) - 1] = '0' + str(position_child_node_default + 1)
+    #             else:
+    #                 list_item_drawing_no[len(list_item_drawing_no) - 1] = str(position_child_node_default + 1)
+    #
+    #             drawing_no = '.'.join(list_item_drawing_no)
+    #             item_node.Update(drawing_no=drawing_no, is_assembly=is_assembly)
+    #             return
+    #     elif item_root.is_third_node_of_assembly:
+    #         logging.exception("Else")
+    #
+    #         list_item_drawing_no[len(list_item_drawing_no) - 1] = str(
+    #             int(list_item_drawing_no[len(list_item_drawing_no) - 1]) + position_child_node_default + 1)
+    #         drawing_no = '.'.join(list_item_drawing_no)
+    #         item_node.Update(drawing_no=drawing_no, is_assembly=is_assembly)
+    #         return
+
+    # def set_drawing_no(self,ctx):
+    #     cnt_level = 0
+    #     item_root = None
+    #     while(True):
+    #         item_root = Item.ByKeys(teilenummer=ctx.dialog.baugruppe)
+    #         if()
+
+    def mapping_projectname(self, ctx):
+        # Get object by teilenummer of Component No.
+        # logging.exception(str(ctx.dialog.baugruppe))
+        item_root = Item.ByKeys(teilenummer=ctx.dialog.baugruppe)
+        # logging.exception("Item Root Project Name : " + str(item_root.projectname))
+        if not item_root.projectname:
+            return
+        item_node = Item.ByKeys(teilenummer=ctx.dialog.teilenummer)
+        # logging.exception("Item Node - Teilenummer" + str(ctx.dialog.teilenummer))
+        item_node.Update(projectname = item_root.projectname)
+
+    def mapping_product_number(self,ctx):
+        item_root = Item.ByKeys(teilenummer=ctx.dialog.baugruppe)
+        if not item_root.product_number:
+            return
+        item_node = Item.ByKeys(teilenummer=ctx.dialog.teilenummer)
+        # logging.exception("Item Node - Teilenummer" + str(ctx.dialog.teilenummer))
+        item_node.Update(product_number=item_root.product_number)
+
+    def gen_drawing_no(self, ctx):
+        item = Item.ByKeys(teilenummer=self.teilenummer)
+        product = item.product
+        asm = item.asm
+        prt = item.prt
+        if(product == None or asm == None or prt == None):
+            logging.exception("NoneType : "+ str(type(product)) + " " + str(type(asm)) + " " + str(type(prt)))
+            return
+        if (len(product.strip()) != 2):
+            return
+        if (len(asm.strip()) != 2):
+            return
+        if (len(prt.strip()) != 3):
+            return
+
+        item_node = Item.ByKeys(teilenummer=ctx.dialog.teilenummer)
+        if not (item_node.product_number):
+            logging.exception("kHong co product number")
+            return
+        pr_num = item_node.product_number
+
+        # if not ((not item.drawing_no) or len((item.drawing_no).strip()) == 0):
+        #     logging.exception("Co drawing no ton tai")
+        #     return
+
+        item.Update(drawing_no=str(pr_num) + "." + str(product) + "." + str(asm) + "." + str(prt))
+
+    def set_drawing_no(self, ctx):
+        teile = ctx.dialog.teilenummer
+        try:
+            t = self.ByKeys(teilenummer=teile)
+        except:
+            return
+        item = Item.ByKeys(teilenummer=teile)
+        # if (teile[:2] == '00'):
+        #     return
+        # Find level of component with given teilenummer
+        try:
+            level = find_level(teile)
+        except:
+            return
+        # parent = None
+        logging.exception("Level : " + str(level))
+        if (level != 0):
+            parent_item = Item.ByKeys(teilenummer=ctx.dialog.baugruppe)
+            parent = ctx.dialog.baugruppe
+            parent_drawing_no = parent_item.drawing_no
+            logging.exception(f"""
+                Parent : {parent}
+                Parent Drawing No: {parent_drawing_no}
+            """)
+            t2 = sqlapi.SQLselect(f"teilenummer, t_kategorie from teile_stamm where teilenummer = '{teile}'")
+            child_kategorie = sqlapi.SQLstring(t2, 1, 0)
+            if (child_kategorie == 'Baugruppe'):  # Assembly
+
+                if (level == 1 or level == 2 or level == 3):
+                    logging.exception("Component is Assembly and level = " + str(level))
+                    # Query lấy những Component cùng cấp và cùng chất Assembly
+                    t3 = sqlapi.SQLselect(f" baugruppe , einzelteile.teilenummer , t_kategorie from einzelteile  "
+                                          "INNER JOIN teile_stamm on einzelteile.teilenummer = teile_stamm.teilenummer "
+                                          f"where baugruppe = '{parent}' and teile_stamm.t_kategorie = 'Baugruppe'"
+                                          )
+                    count = sqlapi.SQLrows(t3)
+                    dw = update_drawing_no_assembly_level123(parent_drawing_no, count, level)
+                    item.Update(drawing_no=dw)
+                    logging.exception("Update Drawing_no")
+            elif (child_kategorie == 'Einzelteil'):  # Single Part
+                if (level == 1 or level == 2 or level == 3):
+                    logging.exception("Component is Single Part")
+                    t3 = sqlapi.SQLselect(f" baugruppe , einzelteile.teilenummer , t_kategorie from einzelteile  "
+                                          "INNER JOIN teile_stamm on einzelteile.teilenummer = teile_stamm.teilenummer "
+                                          f"where baugruppe = '{parent}' and teile_stamm.t_kategorie = 'Einzelteil'"
+                                          )
+                    count = sqlapi.SQLrows(t3)
+                    dw = update_drawing_no_singlepart_level123(parent_drawing_no, count, level)
+                    item.Update(drawing_no=dw)
+                    logging.exception("Update Drawing_no")
+            if (level == 4):
+                logging.exception("Component is Assembly and level = " + str(level))
+                # Query lấy những Component cùng cấp và cùng chất Assembly
+                t3 = sqlapi.SQLselect(f" baugruppe , einzelteile.teilenummer , t_kategorie from einzelteile  "
+                                      "INNER JOIN teile_stamm on einzelteile.teilenummer = teile_stamm.teilenummer "
+                                      f"where baugruppe = '{parent}' "
+                                      )
+                count = sqlapi.SQLrows(t3)
+                dw = update_drawing_no_level4(parent_drawing_no, count)
+                item.Update(drawing_no=dw)
+                logging.exception("Update Drawing_no")
+            if (level == 5):
+                dw = parent_drawing_no.split('.')
+                dw[-1] = 'xxx'
+                item.Update(drawing_no='.'.join(dw))
+                logging.exception("Update Drawing_no")
+
     event_map = {
         (('create', 'copy', 'modify'), 'pre_mask'): "disable_imprecise_flag",
         (('create'), ('pre_mask', 'pre')): 'set_default_imprecise_value',
-        (('create', 'copy'), 'pre'): 'make_mbom_mapping_tag',
+        (('create', 'copy'), 'pre'):  ("make_mbom_mapping_tag", "mapping_projectname", "mapping_product_number", "gen_drawing_no"),
         (("create", "copy", "modify"), "pre"): "is_effectivity_period_valid",
         ('relship_copy', 'pre'): 'skip_relships_for_rbom_copy',
-        ('modify', ('pre', 'post')): 'handle_change_assembly'
+        ('modify', ('pre', 'post')): 'handle_change_assembly',
+        #(('create', 'copy'), ('pre', 'post')): 'set_drawing_no',
     }
 
+
+def find_level(teilenummer):
+    from cs.vp.bom import AssemblyComponent as AS
+    now = 0
+    teile = teilenummer
+    while (True):
+        t = AS.ByKeys(teilenummer=teile)
+        if (t is not None):
+            teile = t.baugruppe
+            now += 1
+        else:
+            break
+    ## import logging
+    logging.exception("Level : " + str(now))
+    return now
+
+
+def update_drawing_no_level4(drawing_no_parent, position):
+    return drawing_no_parent[:-1] + str(position)
+
+
+def update_drawing_no_singlepart_level123(drawing_no_parent, position, level):
+    dw = drawing_no_parent.split(".")
+
+    if (position < 10):
+        dw[-1] = ("00" + str(position))
+    elif (position < 100):
+        dw[-1] = ("0" + str(position))
+    else:
+        dw[-1] = str(position)
+    dw = ".".join(dw)
+    return dw
+
+
+def update_drawing_no_assembly_level123(drawing_no_parent, position, level):
+    drawing_no_parent = drawing_no_parent[::-1]
+
+    product_number = (".".join(drawing_no_parent.split('.')[3:]))[::-1]
+    dw = ((drawing_no_parent[::-1]).split('.')[-3:])
+
+    lv = level - 1
+
+    if (level == 1 or level == 2):
+        dw[lv] = ("0" + str(position)) if (position < 10) else str(position)
+    elif (level == 3):
+        if (position < 10):
+            dw[lv] = (str(position) + "00")
+        elif (position < 100):
+            dw[lv] = (str(position) + "0")
+        else:
+            dw[lv] = str(position)
+
+    dw = product_number + "." + (".".join(dw))
+    return dw
 
 @classbody
 class Item(object):
@@ -512,7 +759,6 @@ class BomType(Object):
         ('modify', 'pre_mask'): "disable_activate",
         ('modify', 'pre'): "prevent_deactivate"
     }
-
 
 class PartUsage(ViewObject):
     __maps_to__ = "cdb_part_usage_v"
