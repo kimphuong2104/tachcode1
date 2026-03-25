@@ -1,0 +1,1 @@
+from cs.threedlibs.web.communicator.main import VERSION

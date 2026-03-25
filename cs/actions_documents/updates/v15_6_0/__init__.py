@@ -1,0 +1,21 @@
+#!/usr/bin/env powerscript
+# -*- python -*- coding: iso-8859-1 -*-
+#
+# Copyright (C) 1990 - 2013 CONTACT Software GmbH
+# All rights reserved.
+# http://www.contact.de/
+
+from cdb.comparch.updutils import TranslationCleaner
+
+
+class RemoveLanguages(object):
+    """
+    Removes languages 'tr' and 'zh'.
+    """
+
+    def run(self):  # pylint: disable=no-self-use
+        TranslationCleaner("cs.actions_documents", ["zh", "tr"]).run()
+
+
+pre = []
+post = [RemoveLanguages]
